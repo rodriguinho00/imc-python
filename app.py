@@ -8,8 +8,15 @@ app.secret_key = 'imc_secret_key_2026'
 @app.route('/')
 def index():
     sql = "SHOW TABLES;"
+<<<<<<< HEAD
     resultados = execute_query(sql, fetch=True)
     print(resultados)
+=======
+    resultado = execute_query(sql, fetch=True )
+    print(resultado)
+
+    
+>>>>>>> 426b602 (primeiro commit)
     return render_template('index.html')
 
 
@@ -32,6 +39,7 @@ def calcular():
 
             imc = round(peso / (altura ** 2), 2)
 
+<<<<<<< HEAD
             if imc < 18.5:
                 classificacao = 'Abaixo do peso'
             elif imc < 25:
@@ -49,6 +57,20 @@ def calcular():
                 f'Olá {nome}, seu IMC é: {imc} - Classificação: {classificacao}',
                 'success'
             )
+=======
+        if imc < 18.5:
+            classificacao = 'abaixo do peso'
+        elif imc < 25:
+            classificacao = 'peso normal'
+             
+        ## adicionar as demais classificações
+        else:
+            classificacao = 'erro no cálculo do IMC'
+         
+        flash(f'olá {nome}, seu IMC é: {imc} - classificacao: {classificacao}', 'success')
+        # Leva a tela de resultados
+        return redirect(url_for('resultados')) 
+>>>>>>> 426b602 (primeiro commit)
 
             return redirect(url_for('resultados'))
 
