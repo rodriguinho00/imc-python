@@ -1,85 +1,153 @@
 from flask import Flask, render_template, request, redirect, url_for, flash
-from db import execute_query
+from db import execute_query, execute_one, verificar_criar_tabelas
 
 app = Flask(__name__)
 app.secret_key = 'imc_secret_key_2026'
 
+verificar_criar_tabelas()
+
+def calcular_imc(peso, altura ):
+    return round(peso / (altura ** 2), 2) 
+
+def classificacao(imc):
+    if imc < 18.5:
+        classificacao = 'Abaixo do peso'
+    elif imc < 25:
+        classificacao = 'Peso normal'
+    elif imc < 30:
+        classificacao = 'Sobrepeso'
+
+    # Demais classificações
+    else:
+        classificacao = 'Erro na classificação'    
+    
+    return classificacao
+
 
 @app.route('/')
 def index():
-    sql = "SHOW TABLES;"
-<<<<<<< HEAD
-    resultados = execute_query(sql, fetch=True)
-    print(resultados)
-=======
-    resultado = execute_query(sql, fetch=True )
-    print(resultado)
-
-    
->>>>>>> 426b602 (primeiro commit)
     return render_template('index.html')
 
 
 @app.route('/resultados')
 def resultados():
-    calculos = []
-    return render_template('resultados.html', calculos=calculos, total=len(calculos))
+
+    try:
+
+        sql = "SELECT * FROM calculos WHERE deletado_em IS NULL"
+
+        calculos = execute_query(sql, fetch=True)
+
+        if calculos is None:
+            calculos = []
+
+    except Exception as e:
+        flash (f'Erro ao buscar dados!', 'danger')
+        app.logger.error(f'Erro no INSERT: {E}')
+        return redirect (url_for('resultados'))
+
+    return render_template('resultados.html', 
+                           calculos=calculos, 
+                           total=len(calculos),
+                           calcular = calcular_imc,
+                           classificacao = classificacao)
 
 
 @app.route('/calcular', methods=['GET', 'POST'])
 def calcular():
+
     if request.method == 'POST':
-        nome = request.form.get('nome', 'Não foi enviado um nome')
-        peso = request.form.get('peso')
-        altura = request.form.get('altura')
+        nome = request.form.get('nome', 'Não foi enviado nome!').strip()
+        peso = request.form.get('peso', 'Não foi enviado peso!').strip()
+        altura = request.form.get('altura', 'Não foi enviado altura!').strip()
+
+        peso = float(peso)
+        altura = float(altura)
 
         try:
-            peso = float(peso)
-            altura = float(altura)
+            # Cria o SCRIPT SQL para ser enviado, %s é cada valor 
+            sql = 'INSERT INTO calculos(nome, peso, altura) VALUES (%s, %s, %s);'
 
-            imc = round(peso / (altura ** 2), 2)
+            # Passa o SQL + os parametros que aqui são os dados em uma lista 
+            execute_query(sql, (nome, peso, altura))
 
-<<<<<<< HEAD
-            if imc < 18.5:
-                classificacao = 'Abaixo do peso'
-            elif imc < 25:
-                classificacao = 'Peso normal'
-            elif imc < 30:
-                classificacao = 'Sobrepeso'
-            elif imc < 35:
-                classificacao = 'Obesidade grau 1'
-            elif imc < 40:
-                classificacao = 'Obesidade grau 2'
-            else:
-                classificacao = 'Obesidade grau 3'
+            # Gera a notificação de sucesso
+            flash(f'Produto [{nome}] cadastrado com sucesso!', 'sucesso')    
+           
+            # Leva a tela de resultados 
+            return redirect (url_for('resultados'))
 
-            flash(
-                f'Olá {nome}, seu IMC é: {imc} - Classificação: {classificacao}',
-                'success'
-            )
-=======
-        if imc < 18.5:
-            classificacao = 'abaixo do peso'
-        elif imc < 25:
-            classificacao = 'peso normal'
-             
-        ## adicionar as demais classificações
-        else:
-            classificacao = 'erro no cálculo do IMC'
-         
-        flash(f'olá {nome}, seu IMC é: {imc} - classificacao: {classificacao}', 'success')
-        # Leva a tela de resultados
-        return redirect(url_for('resultados')) 
->>>>>>> 426b602 (primeiro commit)
 
-            return redirect(url_for('resultados'))
-
-        except ValueError:
-            flash('Peso e altura devem ser números válidos.', 'danger')
-            return redirect(url_for('calcular'))
+        except Exception as e:
+            flash (f'Erro ao salvar!', 'danger')
+            app.logger.error(f'Erro no INSERT: {E}')
+            return redirect (url_for('calcular'))
+        
+        # flash(f'Olá {nome}, seu IMC é {imc} e sua classificação é: {classificacao}', 'success')    
 
     return render_template('formulario.html')
 
+@app.route('/calcular/editar/<int:id>',methods=['GET' , 'POST'])
+def editar_imc(id):
+
+
+    dados = execute_one('SELECT * FROM calculos WHERE id_calculo = %s', (id,))
+    print(dados)
+
+    if request.method == 'POST':
+        try:
+            nome = request.form.get('nome', 'Não foi enviado nome!').strip()
+            peso = request.form.get('peso', 'Não foi enviado peso!').strip()
+            altura = request.form.get('altura', 'Não foi enviado altura!').strip()
+
+            peso = float(peso)
+            altura = float(altura)
+
+            valores = (nome, peso, altura, id)
+
+            sql = '''
+                UPDATE calculos SET
+                nome = %s,
+                peso = %s,
+                altura = %s
+                WHERE id_calculo = %s; 
+            '''    
+            execute_query(sql, valores)
+
+            flash(f'IMC Atuzalizado com sucesso', 'warnig')
+            return redirect(url_for('resultados'))
+
+        except Exception as e:
+            flash(f'Erro ao atualizar : {e}', 'danger')
+            return render_template('formulario.html', dados=dados)
+    
+
+    
+    return render_template('formulario.html', dados=dados)
+
+@app.route('/deletar/fisico/<int:id>', method=['POST'])
+def deletar_fisico(id):
+    try:
+        sql= "DELETE FROM calculos WHERE id_calculo= %s;"
+        execute_query(sql, (id,))
+        flash('registro DELETADO PERMANENTEMENTE!', 'danger')
+    except Exception as e:
+        flash(f'Erro ao deletar fisicamente: {e}', 'warning')
+        app.logger.error(f'Erro no DELETE:  {e}')
+
+    return redirect(url_for('resultados'))
+
+@app.route('/deletar/logico/<int:id>', method=['POST'])
+def deletar_logico(id):
+    try:
+        sql= "UPDATE calculos SET excluido_em = NOW WHERE id_calculo= %s;"
+        execute_query(sql, (id,))
+        flash('registro DELETADO / ESCONDIDO!', 'danger')
+    except Exception as e:
+        flash(f'Erro ao deletar logicamente: {e}', 'warning')
+        app.logger.error(f'Erro no UPDATE / DELETE:  {e}')
+
+    return redirect(url_for('resultados'))
 
 if __name__ == '__main__':
     app.run(debug=True)
